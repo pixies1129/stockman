@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>준이의 재개발 계산기</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; padding: 2rem 1rem; }
+    .container { max-width: 700px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 500; color: #111; margin-bottom: 2rem; }
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    .section-label { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .full { grid-column: 1 / -1; }
+    label { font-size: 17px; color: #555; display: block; margin-bottom: 6px; }
+    input[type=number] { width: 100%; font-size: 20px; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+    input[type=number]:focus { border-color: #4a90d9; }
+    .result-row { background: #f8f8f8; border-radius: 10px; padding: 1.1rem 1.4rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 0.75rem; }
+    .result-row.highlight { background: #fff; border: 2px solid #4a90d9; }
+    .result-label-wrap { display: flex; align-items: center; gap: 12px; }
+    .formula { font-size: 18px; color: #777; }
+    .result-name { font-size: 17px; color: #aaa; }
+    .result-value { font-size: 24px; font-weight: 500; color: #111; }
+    .result-row.highlight .result-name { color: #4a90d9; }
+    .result-row.highlight .result-value { font-size: 28px; color: #4a90d9; }
+    button { font-size: 17px; padding: 10px 24px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; margin-top: 0.5rem; }
+    button:hover { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>준이의 재개발 계산기</h1>
+
+    <div class="card">
+      <p class="section-label">입력값</p>
+      <div class="grid">
+        <div>
+          <label>매매가 (억원)</label>
+          <input type="number" id="i-maemae" placeholder="0" oninput="calc()">
+        </div>
+        <div>
+          <label>보증금 (억원)</label>
+          <input type="number" id="i-boejeung" placeholder="0" oninput="calc()">
+        </div>
+        <div>
+          <label>감정가 (억원)</label>
+          <input type="number" id="i-gamjeong" placeholder="0" oninput="calc()">
+        </div>
+        <div>
+          <label>비례율 (%)</label>
+          <input type="number" id="i-biryeul" placeholder="100" oninput="calc()">
+        </div>
+        <div class="full">
+          <label>조합원분양가 (억원)</label>
+          <input type="number" id="i-johap" placeholder="0" oninput="calc()">
+        </div>
+      </div>
+    </div>
+
+    <div class="result-row">
+      <span class="formula">매매가 − 보증금</span>
+      <div class="result-label-wrap">
+        <span class="result-name">실투자금</span>
+        <span id="o-sil" class="result-value">— 억원</span>
+      </div>
+    </div>
+    <div class="result-row">
+      <span class="formula">매매가 − 감정가</span>
+      <div class="result-label-wrap">
+        <span class="result-name">프리미엄</span>
+        <span id="o-premium" class="result-value">— 억원</span>
+      </div>
+    </div>
+    <div class="result-row">
+      <span class="formula">감정가 × 비례율</span>
+      <div class="result-label-wrap">
+        <span class="result-name">권리가액</span>
+        <span id="o-gwonri" class="result-value">— 억원</span>
+      </div>
+    </div>
+    <div class="result-row">
+      <span class="formula">조합원분양가 − 권리가액</span>
+      <div class="result-label-wrap">
+        <span class="result-name">분담금</span>
+        <span id="o-bundamgeum" class="result-value">— 억원</span>
+      </div>
+    </div>
+    <div class="result-row highlight">
+      <span class="formula">매매가 + 분담금</span>
+      <div class="result-label-wrap">
+        <span class="result-name">총 투자금</span>
+        <span id="o-total" class="result-value">— 억원</span>
+      </div>
+    </div>
+
+    <button onclick="reset()">초기화</button>
+  </div>
+
+  <script>
+    function fmt(n) {
+      var rounded = Math.round(n * 100) / 100;
+      return rounded.toLocaleString('ko-KR') + ' 억원';
+    }
+    function calc() {
+      var maemae = parseFloat(document.getElementById('i-maemae').value) || 0;
+      var boejeung = parseFloat(document.getElementById('i-boejeung').value) || 0;
+      var gamjeong = parseFloat(document.getElementById('i-gamjeong').value) || 0;
+      var biryeulRaw = document.getElementById('i-biryeul').value;
+      var bRate = biryeulRaw === '' ? 100 : (parseFloat(biryeulRaw) || 0);
+      var johap = parseFloat(document.getElementById('i-johap').value) || 0;
+
+      var sil = maemae - boejeung;
+      var premium = maemae - gamjeong;
+      var gwonri = Math.round(gamjeong * bRate) / 100;
+      var bundamgeum = johap - gwonri;
+      var total = maemae + bundamgeum;
+
+      var hasInput = document.getElementById('i-maemae').value !== '' ||
+                     document.getElementById('i-boejeung').value !== '' ||
+                     document.getElementById('i-gamjeong').value !== '' ||
+                     biryeulRaw !== '' ||
+                     document.getElementById('i-johap').value !== '';
+
+      document.getElementById('o-sil').textContent = hasInput ? fmt(sil) : '— 억원';
+      document.getElementById('o-premium').textContent = hasInput ? fmt(premium) : '— 억원';
+      document.getElementById('o-gwonri').textContent = hasInput ? fmt(gwonri) : '— 억원';
+      document.getElementById('o-bundamgeum').textContent = hasInput ? fmt(bundamgeum) : '— 억원';
+      document.getElementById('o-total').textContent = hasInput ? fmt(total) : '— 억원';
+    }
+    function reset() {
+      ['i-maemae','i-boejeung','i-gamjeong','i-biryeul','i-johap'].forEach(function(id) {
+        document.getElementById(id).value = '';
+      });
+      ['o-sil','o-premium','o-gwonri','o-bundamgeum','o-total'].forEach(function(id) {
+        document.getElementById(id).textContent = '— 억원';
+      });
+    }
+  </script>
+</body>
+</html>
