@@ -64,7 +64,8 @@ def analyze_with_claude(stock_lines: str) -> str:
         response = client.messages.create(
             model="claude-opus-4-8",
             max_tokens=1500,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 4}],
+            thinking={"type": "adaptive"},
+            tools=[{"type": "web_search_20260209", "name": "web_search"}],
             messages=[{"role": "user", "content": prompt}],
         )
         result_text = "".join(block.text for block in response.content if hasattr(block, "text"))
