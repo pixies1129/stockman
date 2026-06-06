@@ -69,16 +69,17 @@ Google 검색으로 오늘자 글로벌 경제·증시 관련 뉴스를 5개 이
 
 규칙: 추측 없이 실제 검색된 뉴스만 인용. 스페이스X IPO 뉴스가 있으면 포함."""
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "tools": [{"google_search": {}}],
+        "tools": [{"google_search_retrieval": {}}],
     }
 
     try:
         resp = requests.post(url, json=payload, timeout=60)
         if not resp.ok:
-            print(f"Gemini API 오류: {resp.status_code} {resp.text}")
+            print(f"Gemini API 오류: {resp.status_code}")
+            print(f"응답 내용: {resp.text[:500]}")
             return f"뉴스 수집 오류: HTTP {resp.status_code}"
         data = resp.json()
         text = data["candidates"][0]["content"]["parts"][0]["text"]
