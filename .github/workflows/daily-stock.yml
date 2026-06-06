@@ -27,6 +27,22 @@ jobs:
       - name: 의존성 설치
         run: pip install -r stock-alert/requirements.txt
 
+      - name: Secrets 확인
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "❌ GEMINI_API_KEY 없음 - GitHub Secrets에 등록 필요"
+            exit 1
+          else
+            echo "✓ GEMINI_API_KEY 확인됨 (${#GEMINI_API_KEY}자)"
+          fi
+          if [ -z "$TELEGRAM_BOT_TOKEN" ]; then echo "❌ TELEGRAM_BOT_TOKEN 없음"; exit 1; fi
+          if [ -z "$TELEGRAM_CHAT_ID" ]; then echo "❌ TELEGRAM_CHAT_ID 없음"; exit 1; fi
+          echo "✓ 모든 Secrets 확인됨"
+
       - name: 증시 알림 실행
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
