@@ -71,16 +71,15 @@ def analyze_with_claude(stock_lines: str) -> str:
     try:
         response = client.messages.create(
             model="claude-opus-4-8",
-            max_tokens=1500,
-            thinking={"type": "adaptive"},
+            max_tokens=3000,
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
             messages=[{"role": "user", "content": prompt}],
         )
-        result_text = "".join(block.text for block in response.content if hasattr(block, "text"))
-        return result_text.strip() or "분석 데이터를 가져오지 못했습니다."
+        result_text = "".join(block.text for block in response.content if block.type == "text")
+        return result_text.strip() or "뉴스를 가져오지 못했습니다."
     except Exception as e:
-        print(f"Claude 분석 실패: {e}")
-        return f"AI 분석 오류: {e}"
+        print(f"Claude 뉴스 수집 실패: {e}")
+        return f"뉴스 수집 오류: {e}"
 
 
 def send_telegram_message(text: str) -> bool:
