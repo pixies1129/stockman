@@ -6,6 +6,9 @@ on:
     - cron: "0 23 * * 0-4"
   workflow_dispatch: # 수동 테스트용
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   stock-alert:
     runs-on: ubuntu-latest
