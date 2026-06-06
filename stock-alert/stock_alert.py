@@ -20,7 +20,7 @@ STOCKS = {
     "다우존스": {"ticker": "^DJI", "currency": "USD"},
 }
 
-NEWS_TICKERS = ["^GSPC", "TSLA", "005930.KS", "000660.KS", "^NDX"]
+NEWS_TICKERS = ["^GSPC", "^NDX", "TSLA", "005930.KS", "000660.KS"]
 
 
 def get_stock_data(name: str, info: dict) -> dict | None:
@@ -45,14 +45,14 @@ def format_price(data: dict) -> str:
     return f"${data['price']:,.2f}"
 
 
-def collect_news() -> str:
-    """yfinance에서 뉴스 수집 (무료, API 불필요)"""
+def collect_news() -> list[dict]:
+    """yfinance에서 최신 뉴스 수집 (무료, API 불필요)"""
     seen = set()
-    lines = []
+    items = []
     for sym in NEWS_TICKERS:
         try:
             raw = yf.Ticker(sym).news or []
-            for item in raw[:5]:
+            for item in raw[:6]:
                 content = item.get("content", item)
                 title = content.get("title", "")
                 publisher = (
@@ -61,54 +61,11 @@ def collect_news() -> str:
                 )
                 if title and title not in seen:
                     seen.add(title)
-                    lines.append(f"- {title} ({publisher})" if publisher else f"- {title}")
+                    items.append({"title": title, "publisher": publisher})
         except Exception as e:
             print(f"  [{sym}] 뉴스 수집 실패: {e}")
-    print(f"  수집된 뉴스: {len(lines)}건")
-    return "\n".join(lines[:15])
-
-
-def summarize_with_gemini(news_text: str, stock_lines: str) -> str:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return "오류: GEMINI_API_KEY가 설정되지 않았습니다."
-
-    today = datetime.now(KST).strftime("%Y년 %m월 %d일")
-    prompt = f"""오늘({today}) 수집된 글로벌 증시 뉴스:
-{news_text}
-
-오늘 증시 현황:
-{stock_lines}
-
-위 뉴스와 증시 데이터를 바탕으로 한국어로 아래 형식에 맞게 작성해주세요.
-
-【오늘의 주요 경제 뉴스】
-
-① [뉴스 제목] (출처)
-→ 한 줄 요약 (한국어)
-
-② [뉴스 제목] (출처)
-→ 한 줄 요약
-
-(③~⑤ 동일, 총 5개)
-
-【종합 시사점】
-오늘 시장 흐름과 투자자가 주목할 점을 3줄 이내로."""
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-
-    try:
-        resp = requests.post(url, json=payload, timeout=60)
-        if not resp.ok:
-            print(f"Gemini API 오류: {resp.status_code}")
-            print(f"응답: {resp.text[:500]}")
-            return f"요약 오류: HTTP {resp.status_code}"
-        data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except Exception as e:
-        print(f"Gemini 요약 실패: {e}")
-        return f"요약 오류: {e}"
+    print(f"  수집된 뉴스: {len(items)}건")
+    return items[:8]
 
 
 def send_telegram_message(text: str) -> bool:
@@ -129,7 +86,7 @@ def send_telegram_message(text: str) -> bool:
     return True
 
 
-def build_message(stock_data: dict, analysis: str) -> str:
+def build_message(stock_data: dict, news_items: list[dict]) -> str:
     day_map = {"Mon": "월", "Tue": "화", "Wed": "수", "Thu": "목", "Fri": "금", "Sat": "토", "Sun": "일"}
     now = datetime.now(KST)
     date_str = now.strftime(f"%Y년 %m월 %d일 ({day_map.get(now.strftime('%a'), '')})")
@@ -159,9 +116,17 @@ def build_message(stock_data: dict, analysis: str) -> str:
     lines.append("🚀 스페이스X: 미상장")
     lines.append("")
     lines.append("─" * 22)
-    lines.append("🔍 오늘의 경제 뉴스")
+    lines.append("📰 오늘의 주요 뉴스")
     lines.append("")
-    lines.append(analysis)
+
+    numbers = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧"]
+    if news_items:
+        for i, item in enumerate(news_items):
+            num = numbers[i] if i < len(numbers) else f"{i+1}."
+            pub = f" ({item['publisher']})" if item["publisher"] else ""
+            lines.append(f"{num} {item['title']}{pub}")
+    else:
+        lines.append("뉴스를 가져오지 못했습니다.")
 
     return "\n".join(lines)
 
@@ -177,21 +142,13 @@ def main():
         if data:
             print(f"  ✓ {name}: {format_price(data)} ({data['change_pct']:+.2f}%)")
 
-    print("\n[2] 뉴스 수집 중 (yfinance)...")
-    news_text = collect_news()
+    print("\n[2] 뉴스 수집 중...")
+    news_items = collect_news()
 
-    print("\n[3] Gemini로 한국어 요약 중...")
-    stock_lines = "\n".join(
-        f"- {name}: {format_price(d)} ({d['change_pct']:+.2f}%)"
-        for name, d in stock_data.items() if d
-    )
-    analysis = summarize_with_gemini(news_text, stock_lines)
-    print(f"  ✓ 요약 완료 ({len(analysis)}자)")
+    message = build_message(stock_data, news_items)
+    print(f"\n[3] 메시지 구성 완료 ({len(message)}자)")
 
-    message = build_message(stock_data, analysis)
-    print(f"\n[4] 메시지 구성 완료 ({len(message)}자)")
-
-    print("\n[5] 텔레그램 전송 중...")
+    print("\n[4] 텔레그램 전송 중...")
     success = send_telegram_message(message)
     if success:
         print("  ✓ 텔레그램 전송 성공!")
