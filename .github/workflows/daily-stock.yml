@@ -2,8 +2,8 @@ name: 매일 증시 텔레그램 알림
 
 on:
   schedule:
-    # KST 오전 8시 = UTC 전날 23시 (일~목 = 월~금 KST)
-    - cron: "0 23 * * 0-4"
+    # KST 오전 8시 = UTC 전날 23시 (매일)
+    - cron: "0 23 * * *"
   workflow_dispatch: # 수동 테스트용
 
 env:
