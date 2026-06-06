@@ -8,7 +8,8 @@ import os
 import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
-import anthropic
+from google import genai
+from google.genai import types
 
 KST = timezone(timedelta(hours=9))
 
@@ -44,14 +45,14 @@ def format_price(data: dict) -> str:
     return f"${data['price']:,.2f}"
 
 
-def analyze_with_claude(stock_lines: str) -> str:
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+def fetch_news_with_gemini(stock_lines: str) -> str:
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     today = datetime.now(KST).strftime("%Y년 %m월 %d일")
 
     prompt = f"""오늘({today}) 주요 증시 현황:
 {stock_lines}
 
-웹 검색으로 오늘자 글로벌 경제·증시 관련 뉴스를 5개 이상 수집한 뒤, 아래 형식으로 한국어로 작성해주세요.
+Google 검색으로 오늘자 글로벌 경제·증시 관련 뉴스를 5개 이상 찾아서, 아래 형식으로 한국어로 작성해주세요.
 
 【오늘의 주요 경제 뉴스】
 
@@ -66,19 +67,19 @@ def analyze_with_claude(stock_lines: str) -> str:
 【종합 시사점】
 수집한 뉴스를 바탕으로 오늘 시장에 미치는 영향과 투자자가 주목할 점을 3줄 이내로 정리.
 
-규칙: 추측 없이 실제 뉴스만 인용. 스페이스X IPO 뉴스가 있으면 포함."""
+규칙: 추측 없이 실제 검색된 뉴스만 인용. 스페이스X IPO 뉴스가 있으면 포함."""
 
     try:
-        response = client.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=3000,
-            tools=[{"type": "web_search_20260209", "name": "web_search"}],
-            messages=[{"role": "user", "content": prompt}],
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
         )
-        result_text = "".join(block.text for block in response.content if block.type == "text")
-        return result_text.strip() or "뉴스를 가져오지 못했습니다."
+        return response.text.strip() or "뉴스를 가져오지 못했습니다."
     except Exception as e:
-        print(f"Claude 뉴스 수집 실패: {e}")
+        print(f"Gemini 뉴스 수집 실패: {e}")
         return f"뉴스 수집 오류: {e}"
 
 
@@ -150,13 +151,13 @@ def main():
         if data:
             print(f"  ✓ {name}: {format_price(data)} ({data['change_pct']:+.2f}%)")
 
-    print("\n[2] Claude AI 분석 중 (웹 검색 포함)...")
+    print("\n[2] Gemini로 최신 뉴스 수집 중...")
     stock_lines = "\n".join(
         f"- {name}: {format_price(d)} ({d['change_pct']:+.2f}%)"
         for name, d in stock_data.items() if d
     )
-    analysis = analyze_with_claude(stock_lines)
-    print(f"  ✓ 분석 완료 ({len(analysis)}자)")
+    analysis = fetch_news_with_gemini(stock_lines)
+    print(f"  ✓ 뉴스 수집 완료 ({len(analysis)}자)")
 
     message = build_message(stock_data, analysis)
     print(f"\n[3] 메시지 구성 완료 ({len(message)}자)")
