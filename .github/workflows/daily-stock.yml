@@ -1,0 +1,32 @@
+name: 매일 증시 텔레그램 알림
+
+on:
+  schedule:
+    # KST 오전 8시 = UTC 전날 23시 (일~목 = 월~금 KST)
+    - cron: "0 23 * * 0-4"
+  workflow_dispatch: # 수동 테스트용
+
+jobs:
+  stock-alert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: stock-alert/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r stock-alert/requirements.txt
+
+      - name: 증시 알림 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python stock-alert/stock_alert.py
