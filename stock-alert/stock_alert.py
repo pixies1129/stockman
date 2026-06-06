@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-매일 오전 8시 텔레그램으로 증시 현황 + AI 분석을 전송하는 스크립트
+매일 오전 8시 텔레그램으로 증시 현황 + 뉴스를 전송하는 스크립트
 GitHub Actions에서 실행됨
 """
 
@@ -8,8 +8,6 @@ import os
 import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
-from google import genai
-from google.genai import types
 
 KST = timezone(timedelta(hours=9))
 
@@ -46,9 +44,11 @@ def format_price(data: dict) -> str:
 
 
 def fetch_news_with_gemini(stock_lines: str) -> str:
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    today = datetime.now(KST).strftime("%Y년 %m월 %d일")
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return "뉴스 수집 오류: GEMINI_API_KEY가 설정되지 않았습니다."
 
+    today = datetime.now(KST).strftime("%Y년 %m월 %d일")
     prompt = f"""오늘({today}) 주요 증시 현황:
 {stock_lines}
 
@@ -69,15 +69,20 @@ Google 검색으로 오늘자 글로벌 경제·증시 관련 뉴스를 5개 이
 
 규칙: 추측 없이 실제 검색된 뉴스만 인용. 스페이스X IPO 뉴스가 있으면 포함."""
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "tools": [{"google_search": {}}],
+    }
+
     try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-            ),
-        )
-        return response.text.strip() or "뉴스를 가져오지 못했습니다."
+        resp = requests.post(url, json=payload, timeout=60)
+        if not resp.ok:
+            print(f"Gemini API 오류: {resp.status_code} {resp.text}")
+            return f"뉴스 수집 오류: HTTP {resp.status_code}"
+        data = resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return text.strip() or "뉴스를 가져오지 못했습니다."
     except Exception as e:
         print(f"Gemini 뉴스 수집 실패: {e}")
         return f"뉴스 수집 오류: {e}"
@@ -87,7 +92,6 @@ def send_telegram_message(text: str) -> bool:
     bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
     chat_id = os.environ["TELEGRAM_CHAT_ID"]
 
-    # 텔레그램 메시지 최대 4096자
     if len(text) > 4000:
         text = text[:3990] + "...\n[메시지 길이 초과로 잘림]"
 
@@ -130,10 +134,10 @@ def build_message(stock_data: dict, analysis: str) -> str:
             lines.append(f"❓ {name}: 데이터 없음")
 
     lines.append("")
-    lines.append("🚀 스페이스X: 미상장 (AI 분석에 IPO 뉴스 포함)")
+    lines.append("🚀 스페이스X: 미상장 (뉴스에 IPO 동향 포함)")
     lines.append("")
     lines.append("─" * 22)
-    lines.append("🤖 AI 분석")
+    lines.append("🔍 오늘의 경제 뉴스")
     lines.append("")
     lines.append(analysis)
 
